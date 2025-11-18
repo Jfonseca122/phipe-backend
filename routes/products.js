@@ -65,7 +65,8 @@ router.get("/public", async (req, res) => {
       "SELECT id, name, price, type, image FROM product"
     );
     res.json(rows);
-  } catch {
+  } catch (error) {
+    console.log(error)
     res.status(500).json({ error: "Error al obtener productos" });
   }
 });
