@@ -1,0 +1,9 @@
+# Dependencias del proyecto (npm/yarn)
+node_modules/
+
+# Variables de entorno (credenciales, configuración por entorno)
+.env
+
+# Archivos de logs y errores
+*.log
+
