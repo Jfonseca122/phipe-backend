@@ -4,7 +4,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 
-import pool from "./db.js"; // <-- tu conexión MySQL
+dotenv.config();
 
 import authRoutes from "./routes/auth.js";
 import productRoutes from "./routes/products.js";
@@ -12,8 +12,6 @@ import tableRoutes from "./routes/tables.js";
 import orderRoutes from "./routes/orders.js";
 import configuracionRoutes from "./routes/configuracion.js";
 import pedidosTempRoutes from "./routes/pedidosTemp.js";
-
-dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
@@ -27,11 +25,13 @@ export const io = new Server(httpServer, {
   }
 });
 
-// Socket.IO
 io.on("connection", (socket) => {
+ 
+
   socket.on("registraCliente", (telefono) => {
     if (typeof telefono === "string") {
       ClientesConectados[telefono] = socket.id;
+     
     }
   });
 
@@ -42,6 +42,7 @@ io.on("connection", (socket) => {
         break;
       }
     }
+   
   });
 });
 
@@ -62,26 +63,10 @@ app.use("/pedidos-temp", pedidosTempRoutes);
 
 // Error global
 app.use((err, req, res, next) => {
-  console.error(err); // log para depuración
+  
   res.status(500).json({ error: "Error interno del servidor" });
 });
 
 const PORT = process.env.PORT || 4000;
 
-// Función para probar la conexión a MySQL antes de levantar el servidor
-async function probarConexion() {
-  try {
-    const [rows] = await pool.query("SELECT 1 + 1 AS resultado");
-    console.log("📌 Prueba MySQL exitosa:", rows[0].resultado); // debería imprimir 2
-  } catch (err) {
-    console.error("❌ Error ejecutando prueba MySQL:", err);
-    process.exit(1); // cierra el servidor si falla la DB
-  }
-}
-
-// Primero probamos la conexión, luego arrancamos el servidor
-probarConexion().then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  });
-});
+httpServer.listen(PORT, () => { console.log(PORT) });
