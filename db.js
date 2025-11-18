@@ -49,7 +49,7 @@ async function testDB() {
     console.error("❌ Error en test query:", err.message);
   }
 }
-
+// prueba
 testDB();
 
 export default pool;
