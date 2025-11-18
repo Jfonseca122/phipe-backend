@@ -25,4 +25,16 @@ try {
   console.error("❌ Error al iniciar la conexión MySQL:", err.message);
 }
 
+
+async function testDB() {
+  try {
+    const [rows] = await pool.query("SELECT 1 + 1 AS result");
+    console.log("Test query OK:", rows);
+  } catch (err) {
+    console.error("Error en test query:", err.message);
+  }
+}
+
+testDB();
+
 export default pool;
