@@ -2,6 +2,8 @@
 import express from "express";
 import db from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { io } from "../server.js"; // 🔥 Esto permite emitir eventos
+
 
 const router = express.Router();
 
@@ -92,6 +94,9 @@ router.post("/", authenticateToken, async (req, res) => {
       "INSERT INTO product (name, price, type, image) VALUES (?, ?, ?, ?)",
       [name, price, type, image]
     );
+    const product = { id: result.insertId, name, price, type, image };
+
+    io.emit("producto_creado", product);
 
     res.json({
       id: result.insertId,
@@ -131,6 +136,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
     if (result.affectedRows === 0)
       return res.status(404).json({ error: "Producto no encontrado" });
 
+     const updatedProduct = { id: Number(id), name, price, type, image };
+      io.emit("producto_actualizado", updatedProduct);
+
     res.json({ message: "Producto actualizado" });
   } catch (err) {
   
@@ -168,6 +176,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 
     if (result.affectedRows === 0)
       return res.status(404).json({ error: "Producto no encontrado" });
+
+        io.emit("producto_eliminado", { id: Number(id) }); //
 
     res.json({ message: "Producto eliminado correctamente" });
 
