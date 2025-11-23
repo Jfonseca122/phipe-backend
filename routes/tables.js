@@ -6,6 +6,7 @@
 import express from "express";
 import db from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { io } from "../server.js";
 
 const router = express.Router();
 
@@ -40,6 +41,8 @@ router.post("/", authenticateToken, async (req, res) => {
       "INSERT INTO `table` (name) VALUES (?)",
       [name.trim()]
     );
+    const mesa = { id: result.insertId, name: name.trim() };
+    io.emit("mesa_creada", mesa);
 
     res.json({
       id: result.insertId,
@@ -80,6 +83,11 @@ router.put("/:id", authenticateToken, async (req, res) => {
       [name.trim(), id]
     );
 
+    io.emit("mesa_actualizada", {
+      id,
+      name: name.trim()
+    });
+
     res.json({ message: "Mesa actualizada correctamente" });
   } catch (err) {
    
@@ -119,6 +127,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     }
 
     await db.query("DELETE FROM `table` WHERE id = ?", [id]);
+
+    io.emit("mesa_eliminada", { id });
 
     res.json({ message: "Mesa eliminada correctamente" });
   } catch (err) {
