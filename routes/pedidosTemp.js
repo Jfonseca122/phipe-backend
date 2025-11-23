@@ -193,7 +193,7 @@ router.delete("/:id", async (req, res) => {
 
     const telefonoCliente = rows[0].telefono_cliente;
 
-    // 2️⃣ Eliminar pedido de la BD
+    
     await db.query("UPDATE pedidos_temp SET estado = 'rechazado' WHERE id = ?", [id]);
 
     // 3️⃣ Notificar SOLO al cliente que hizo el pedido
@@ -244,7 +244,7 @@ router.post("/:id/aprobar", authenticateToken, async (req, res) => {
 
     const orderId = orderResult.insertId;
 
-    // 4️⃣ Insertar cada item
+    // 4️⃣ Insertar cada item dentro de orderitem
     for (const item of detalles) {
       await db.query(
         "INSERT INTO `orderitem` (orderId, productId, quantity, unitPrice, subtotal) VALUES (?, ?, ?, ?, ?)",
@@ -258,24 +258,36 @@ router.post("/:id/aprobar", authenticateToken, async (req, res) => {
       );
     }
 
-    // 5️⃣ Marcar como facturado
+    // 5️⃣ Marcar pedido temporal como facturado
     await db.query(
       "UPDATE pedidos_temp SET estado = 'facturado' WHERE id = ?",
       [id]
     );
 
-    // 🔥 6️⃣ Notificar al admin
+    // 6️⃣ Notificar SOLO al cliente que hizo el pedido
+    const telefonoCliente = pedido.telefono_cliente;
+    const socketIdCliente = ClientesConectados[telefonoCliente];
+
+    if (socketIdCliente) {
+      io.to(socketIdCliente).emit("pedidoTemporalAprobado", {
+        id
+      });
+    }
+
+    // ✔ 7️⃣ Notificar al admin (si lo necesitas)
     io.emit("pedidoAprobado", { id });
 
     res.json({
-      message: "✔ Pedido aprobado y guardado en tablas definitivas",
+      message: "✔ Pedido aprobado y guardado",
       orderId,
     });
+
   } catch (err) {
-   
+    console.error("Error en aprobar pedido:", err);
     res.status(500).json({ error: "Error al aprobar pedido" });
   }
 });
+
 
 
 // =========================================================
@@ -305,6 +317,38 @@ router.get("/verificarTelefono/:telefono", async (req, res) => {
   } catch (error) {
     
     res.status(500).json({ error: "Error en el servidor" });
+  }
+});
+
+
+// 🔥 OBTENER EL ÚLTIMO PEDIDO DEL DÍA ACTUAL POR TELÉFONO
+router.get("/cliente/:telefono", async (req, res) => {
+  try {
+    const { telefono } = req.params;
+
+    const [rows] = await db.query(
+      `SELECT *
+       FROM pedidos_temp
+       WHERE telefono_cliente = ?
+         AND DATE(creado_en) = CURDATE()   -- Solo pedidos de HOY
+       ORDER BY creado_en DESC
+       LIMIT 1`,
+      [telefono]
+    );
+
+    if (rows.length === 0) {
+      return res.json({
+        existe: false,
+        mensaje: "No tienes pedidos hoy"
+      });
+    }
+
+    const pedido = rows[0];
+    pedido.detalles_pedido = JSON.parse(pedido.detalles_pedido);
+
+    res.json({ existe: true, pedido });
+  } catch (err) {
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
