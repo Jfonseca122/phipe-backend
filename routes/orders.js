@@ -1,13 +1,14 @@
 import express from "express";
 import db from "../db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { io } from "../server.js"; // 🔥 Importamos io para emitir eventos
 
 const router = express.Router();
 
 /* ============================================================
    📌 GET /orders
    Obtener todos los pedidos con sus items
-   ------------------------------------------------------------ */
+============================================================ */
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const [orders] = await db.query(
@@ -15,7 +16,6 @@ router.get("/", authenticateToken, async (req, res) => {
     );
 
     const result = [];
-
     for (const order of orders) {
       const [items] = await db.query(
         `SELECT 
@@ -26,13 +26,11 @@ router.get("/", authenticateToken, async (req, res) => {
          WHERE oi.orderId = ?`,
         [order.id]
       );
-
       result.push({ ...order, items });
     }
 
     res.json(result);
   } catch (err) {
-  
     res.status(500).json({ error: "Error interno al obtener pedidos" });
   }
 });
@@ -40,7 +38,7 @@ router.get("/", authenticateToken, async (req, res) => {
 /* ============================================================
    📌 GET /orders/:tableId
    Obtener el pedido ABIERTO de una mesa
-   ------------------------------------------------------------ */
+============================================================ */
 router.get("/:tableId", authenticateToken, async (req, res) => {
   const { tableId } = req.params;
 
@@ -52,12 +50,9 @@ router.get("/:tableId", authenticateToken, async (req, res) => {
       [tableId]
     );
 
-    if (orders.length === 0) {
-      return res.json([]); // No hay pedido abierto
-    }
+    if (orders.length === 0) return res.json([]); // no hay pedido abierto
 
     const order = orders[0];
-
     const [items] = await db.query(
       `SELECT 
           oi.*, 
@@ -68,9 +63,8 @@ router.get("/:tableId", authenticateToken, async (req, res) => {
       [order.id]
     );
 
-    res.json([{ id: order.id, total: order.total, items }]);
+    res.json([{ ...order, items }]);
   } catch (err) {
- 
     res.status(500).json({ error: "Error interno al obtener pedidos" });
   }
 });
@@ -78,7 +72,7 @@ router.get("/:tableId", authenticateToken, async (req, res) => {
 /* ============================================================
    📌 POST /orders
    Crear un pedido nuevo
-   ------------------------------------------------------------ */
+============================================================ */
 router.post("/", authenticateToken, async (req, res) => {
   const { tableId, items } = req.body;
 
@@ -112,9 +106,11 @@ router.post("/", authenticateToken, async (req, res) => {
       );
     }
 
+    // 🔥 Emitir evento a todos los clientes
+    io.emit("pedido_creado", { orderId, tableId, total, items, status: "OPEN" });
+
     res.json({ orderId, total, message: "Pedido creado correctamente" });
   } catch (err) {
-
     res.status(500).json({ error: "Error interno al crear pedido" });
   }
 });
@@ -122,7 +118,7 @@ router.post("/", authenticateToken, async (req, res) => {
 /* ============================================================
    📌 PUT /orders/order-items/:id
    Actualizar un item del pedido
-   ------------------------------------------------------------ */
+============================================================ */
 router.put("/order-items/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { productId, quantity, unitPrice } = req.body;
@@ -141,9 +137,11 @@ router.put("/order-items/:id", authenticateToken, async (req, res) => {
       [productId, quantity, unitPrice, subtotal, id]
     );
 
+    // 🔥 Emitir evento de actualización de pedido
+    io.emit("pedido_actualizado", { itemId: id, productId, quantity, unitPrice, subtotal });
+
     res.json({ message: "Item actualizado correctamente" });
   } catch (err) {
-  
     res.status(500).json({ error: "Error interno al actualizar item" });
   }
 });
@@ -151,15 +149,18 @@ router.put("/order-items/:id", authenticateToken, async (req, res) => {
 /* ============================================================
    📌 DELETE /orders/order-items/:id
    Eliminar un item del pedido
-   ------------------------------------------------------------ */
+============================================================ */
 router.delete("/order-items/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
     await db.query("DELETE FROM orderitem WHERE id = ?", [id]);
+
+    // 🔥 Emitir evento de item eliminado
+    io.emit("pedido_item_eliminado", { itemId: id });
+
     res.json({ message: "Item eliminado correctamente" });
   } catch (err) {
-
     res.status(500).json({ error: "Error interno al eliminar item" });
   }
 });
@@ -167,7 +168,7 @@ router.delete("/order-items/:id", authenticateToken, async (req, res) => {
 /* ============================================================
    📌 PUT /orders/:id/close
    Cerrar un pedido
-   ------------------------------------------------------------ */
+============================================================ */
 router.put("/:id/close", authenticateToken, async (req, res) => {
   const { id } = req.params;
 
@@ -179,9 +180,11 @@ router.put("/:id/close", authenticateToken, async (req, res) => {
       [id]
     );
 
+    // 🔥 Emitir evento de pedido cerrado
+    io.emit("pedido_cerrado", { id: Number(id) });
+
     res.json({ message: "Pedido cerrado correctamente" });
   } catch (err) {
-  
     res.status(500).json({ error: "Error interno al cerrar pedido" });
   }
 });
